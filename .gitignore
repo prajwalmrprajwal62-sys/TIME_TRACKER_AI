@@ -1,0 +1,10 @@
+# TimeForge
+__pycache__/
+*.pyc
+*.pyo
+*.db
+backend/.env
+backend/timeforge.db
+.env
+node_modules/
+.DS_Store

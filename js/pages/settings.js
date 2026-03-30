@@ -4,6 +4,7 @@
 
 import { state } from '../core/state.js';
 import { $ } from '../core/utils.js';
+import { api } from '../core/api.js';
 import { showToast } from '../components/toast.js';
 import { showConfirm } from '../components/modal.js';
 
@@ -11,6 +12,8 @@ export function SettingsPage() {
   function render() {
     const user = state.get('user') || {};
     const settings = state.get('settings') || {};
+    const backendOnline = window.__timeforge_backend;
+    const isAuth = api.isAuthenticated;
 
     return `
       <div class="page-container stagger-children">
@@ -107,6 +110,43 @@ export function SettingsPage() {
           </div>
         </div>
 
+        <!-- Backend Connection -->
+        <div class="glass-card no-hover mb-6 settings-section">
+          <h3>☁️ Backend Connection</h3>
+          <div class="mt-4">
+            <div class="settings-row">
+              <div class="settings-row-label">
+                <span>Server Status</span>
+                <span>${backendOnline ? 'Connected to FastAPI backend' : 'Backend not running — using localStorage'}</span>
+              </div>
+              <span class="badge ${backendOnline ? 'badge-success' : 'badge-danger'}">${backendOnline ? '🟢 Online' : '🔴 Offline'}</span>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-label">
+                <span>Authentication</span>
+                <span>${isAuth ? 'Logged in as ' + (api.user?.name || api.user?.email || 'user') : 'Not logged in'}</span>
+              </div>
+              ${isAuth ? '<button class="btn btn-danger btn-sm" id="logout-btn">🚪 Logout</button>' : '<button class="btn btn-primary btn-sm" onclick="location.hash=\'#/login\';location.reload();">🔑 Login</button>'}
+            </div>
+            ${isAuth && backendOnline ? `
+            <div class="settings-row">
+              <div class="settings-row-label">
+                <span>Sync to Cloud</span>
+                <span>Push all local data to the backend database</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" id="sync-btn">☁️ Sync Now</button>
+            </div>
+            ` : ''}
+            <div class="settings-row">
+              <div class="settings-row-label">
+                <span>AI Engine</span>
+                <span>${window.__timeforge_ai ? 'Gemini AI configured and ready' : 'Not configured — add GEMINI_API_KEY to backend/.env'}</span>
+              </div>
+              <span class="badge ${window.__timeforge_ai ? 'badge-success' : 'badge-warning'}">${window.__timeforge_ai ? '🤖 Ready' : '⚠️ No Key'}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Danger Zone -->
         <div class="glass-card no-hover settings-section" style="border: 1px solid rgba(239,68,68,0.3);">
           <h3 style="color: var(--color-danger);">⚠️ Danger Zone</h3>
@@ -123,9 +163,9 @@ export function SettingsPage() {
 
         <!-- App Info -->
         <div class="text-center mt-8 text-muted text-xs">
-          <p>TimeForge — Time Intelligence Engine v1.0</p>
+          <p>TimeForge — Time Intelligence Engine v2.0</p>
           <p class="mt-1">Built for champions who refuse to be average.</p>
-          <p class="mt-1">All data stored locally in your browser. No servers, no tracking.</p>
+          <p class="mt-1">${backendOnline ? 'Data synced to local database + localStorage' : 'All data stored locally in your browser'}</p>
         </div>
       </div>
     `;
@@ -209,10 +249,38 @@ export function SettingsPage() {
           danger: true,
           onConfirm: () => {
             state.reset();
+            api.logout();
             showToast('info', 'Data reset', 'All data has been cleared');
             setTimeout(() => location.reload(), 1000);
           }
         });
+      });
+    }
+
+    // Logout
+    const logoutBtn = $('#logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        api.logout();
+        showToast('info', 'Logged out');
+        setTimeout(() => location.reload(), 500);
+      });
+    }
+
+    // Sync to Cloud
+    const syncBtn = $('#sync-btn');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', async () => {
+        syncBtn.textContent = '⏳ Syncing...';
+        syncBtn.disabled = true;
+        try {
+          const result = await api.syncAllData(state.get());
+          showToast('success', 'Data synced!', `Logs: ${result.logs?.created || 0} new, ${result.logs?.skipped || 0} existing`);
+        } catch (e) {
+          showToast('error', 'Sync failed', e.message);
+        }
+        syncBtn.textContent = '☁️ Sync Now';
+        syncBtn.disabled = false;
       });
     }
   }
