@@ -1,9 +1,16 @@
 // ============================================
-// TimeForge — API Service Layer
+// TimeForge — API Service Layer (v3.0)
 // ============================================
 // Bridges frontend ↔ backend. Falls back to localStorage when offline.
+// Integrates sync queue for offline resilience.
 
-const API_BASE = 'http://localhost:8000/api';
+import { syncQueue } from './sync-queue.js';
+
+// Auto-detect environment: localhost → dev backend, production → Railway
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocalhost
+  ? 'http://localhost:8000/api'
+  : (window.__TIMEFORGE_API_URL || 'https://timeforge-backend-production.up.railway.app/api');
 const TOKEN_KEY = 'timeforge_auth_token';
 const USER_KEY = 'timeforge_auth_user';
 
@@ -98,8 +105,8 @@ class ApiService {
 
   // === Auth ===
 
-  async register(email, password, name) {
-    const data = await this._post('/auth/register', { email, password, name });
+  async register(email, password, name, role = 'student') {
+    const data = await this._post('/auth/register', { email, password, name, role });
     this._setAuth(data);
     return data;
   }
@@ -130,6 +137,7 @@ class ApiService {
     this.user = null;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    syncQueue.clear();
   }
 
   // === Time Logs ===
@@ -183,8 +191,8 @@ class ApiService {
 
   // === Plans ===
 
-  async savePlan(date, planJson) {
-    return this._post('/plans', { date, plan_json: JSON.stringify(planJson) });
+  async savePlan(date, planJson, generatedBy = 'manual') {
+    return this._post('/plans', { date, plan_json: JSON.stringify(planJson), generated_by: generatedBy });
   }
 
   async getPlan(date) {
@@ -209,14 +217,54 @@ class ApiService {
     return this._post('/rewards/sync', rewardsData);
   }
 
-  // === AI ===
+  // === AI (with caching + safe fallback) ===
+
+  _aiCache = new Map(); // key → { data, timestamp }
+  _AI_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+  _getCached(key) {
+    const entry = this._aiCache.get(key);
+    if (entry && (Date.now() - entry.timestamp) < this._AI_CACHE_TTL) {
+      return entry.data;
+    }
+    this._aiCache.delete(key);
+    return null;
+  }
+
+  _setCache(key, data) {
+    this._aiCache.set(key, { data, timestamp: Date.now() });
+  }
+
+  /**
+   * Safe AI call wrapper — catches all errors, returns { error, message } instead of throwing.
+   */
+  async safeAICall(fn) {
+    try {
+      return await fn();
+    } catch (e) {
+      console.warn('AI call failed:', e.message);
+      return { error: true, message: e.message || 'AI unavailable' };
+    }
+  }
 
   async getAIAnalysis(days = 7) {
-    return this._get(`/ai/analysis?days=${days}`);
+    const cacheKey = `analysis_${days}`;
+    const cached = this._getCached(cacheKey);
+    if (cached) return { ...cached, source: 'cached' };
+
+    const data = await this._get(`/ai/analysis?days=${days}`);
+    this._setCache(cacheKey, data);
+    return data;
   }
 
   async getCoaching() {
-    return this._get('/ai/coaching');
+    const cacheKey = 'coaching';
+    const cached = this._getCached(cacheKey);
+    if (cached) return cached;
+
+    const data = await this._get('/ai/coaching');
+    this._setCache(cacheKey, data);
+    return data;
   }
 
   async generateAIPlan() {
@@ -229,6 +277,89 @@ class ApiService {
 
   async getAIHistory(limit = 10) {
     return this._get(`/ai/history?limit=${limit}`);
+  }
+
+  // === Weekly Reviews ===
+
+  async getCurrentReview() {
+    return this._get('/reviews/weekly/current');
+  }
+
+  async submitReview(reviewData) {
+    return this._post('/reviews/weekly', reviewData);
+  }
+
+  async getReviewHistory(limit = 12) {
+    return this._get(`/reviews/weekly/history?limit=${limit}`);
+  }
+
+  // === Drift Alerts ===
+
+  async getPendingAlerts() {
+    return this._get('/alerts/pending');
+  }
+
+  async acknowledgeAlert(alertId, action = 'seen') {
+    return this._post(`/alerts/${alertId}/acknowledge?action=${action}`, {});
+  }
+
+  // === Sync Queue Helpers ===
+
+  /**
+   * Fire-and-forget write with queue fallback.
+   * Tries to write to backend. On failure, queues for later retry.
+   */
+  async writeWithFallback(path, method, body, description) {
+    if (!this.isAuthenticated || !this.isOnline) {
+      syncQueue.enqueue(path, method, body, description);
+      return null;
+    }
+    try {
+      return await this._request(path, {
+        method,
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      syncQueue.enqueue(path, method, body, description);
+      return null;
+    }
+  }
+
+  /**
+   * Process any pending items in the sync queue.
+   */
+  async processSyncQueue() {
+    if (!this.isAuthenticated || !this.isOnline) return { processed: 0, failed: 0, remaining: 0 };
+    const rawFetch = async (path, options) => {
+      const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${this.token}`,
+      };
+      return fetch(`${API_BASE}${path}`, { ...options, headers });
+    };
+    return syncQueue.processQueue(rawFetch);
+  }
+
+  /**
+   * Start auto-retry for queued items.
+   */
+  startSyncQueue() {
+    if (!this.isAuthenticated) return;
+    const rawFetch = async (path, options) => {
+      const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${this.token}`,
+      };
+      return fetch(`${API_BASE}${path}`, { ...options, headers });
+    };
+    syncQueue.startAutoRetry(rawFetch);
+  }
+
+  /**
+   * Get sync queue status.
+   */
+  get syncQueuePending() {
+    return syncQueue.pendingCount;
   }
 
   // === Full Sync ===
@@ -251,6 +382,8 @@ class ApiService {
         mood: l.mood || 3,
         energy: l.energy || 3,
         notes: l.notes || '',
+        friction_reason: l.frictionReason || null,
+        friction_text: l.frictionText || null,
         date: l.date,
       }));
       results.logs = await this.syncLogs(formattedLogs);

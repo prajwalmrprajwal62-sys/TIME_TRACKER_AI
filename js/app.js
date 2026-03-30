@@ -1,5 +1,5 @@
 // ============================================
-// STD TIME TRACKER — App Entry Point (v2.0)
+// STD TIME TRACKER — App Entry Point (v3.0)
 // ============================================
 
 import { router } from './core/router.js';
@@ -22,6 +22,7 @@ import { EnforcerPage } from './pages/enforcer-page.js';
 import { RewardsPage } from './pages/rewards.js';
 import { InsightsPage } from './pages/insights.js';
 import { SettingsPage } from './pages/settings.js';
+import { WeeklyReviewPage } from './pages/weekly-review.js';
 
 class App {
   constructor() {
@@ -58,9 +59,12 @@ class App {
           name: profile.name,
           wakeTime: profile.wake_time,
           sleepTime: profile.sleep_time,
+          role: profile.role || 'student',
           goals: [],
           createdAt: profile.created_at,
         });
+        // Start sync queue auto-retry
+        api.startSyncQueue();
         this.renderAppMode();
       } catch (e) {
         // Token expired — show login
@@ -103,7 +107,7 @@ class App {
     // Backend sync on key events (fire and forget)
     if (this.backendOnline && api.isAuthenticated) {
       events.on(EVENTS.LOG_CREATED, (log) => {
-        api.createLog({
+        api.writeWithFallback('/logs', 'POST', {
           activity: log.activity,
           category: log.category,
           start_time: log.startTime,
@@ -112,25 +116,60 @@ class App {
           mood: log.mood,
           energy: log.energy,
           notes: log.notes || '',
+          friction_reason: log.frictionReason || null,
+          friction_text: log.frictionText || null,
           date: log.date,
-        }).catch(e => console.warn('Backend sync (log):', e.message));
+        }, `Log: ${log.activity}`);
       });
 
       events.on(EVENTS.COMPLIANCE_UPDATED, (data) => {
         const rewards = state.get('rewards');
         const streaks = state.get('streaks');
-        api.processDay({
+        const summary = data.summary || {};
+        api.writeWithFallback('/rewards/process-day', 'POST', {
           date: data.date,
           xp_earned: 0,
           compliance_score: data.compliance.score,
+          deep_work_minutes: summary.productiveMinutes || 0,
+          wasted_minutes: summary.wastedMinutes || 0,
           achievements: rewards?.achievements || [],
           streak_current: streaks?.current || 0,
           streak_best: streaks?.best || 0,
           level: rewards?.level || 1,
           level_name: rewards?.levelName || 'Novice',
-        }).catch(e => console.warn('Backend sync (compliance):', e.message));
+        }, `Compliance: ${data.date}`);
       });
+
+      // Process any queued items on boot
+      api.processSyncQueue().then(r => {
+        if (r.processed > 0) console.log(`[SyncQueue] Boot sync: ${r.processed} items processed`);
+      });
+
+      // Check for drift alerts periodically (every 30 minutes)
+      this.startAlertChecks();
     }
+  }
+
+  async startAlertChecks() {
+    const checkAlerts = async () => {
+      try {
+        const alerts = await api.getPendingAlerts();
+        if (alerts && alerts.length > 0) {
+          const alert = alerts[0]; // Show most recent
+          events.emit(EVENTS.TOAST_SHOW, {
+            type: alert.severity === 'critical' ? 'error' : 'warning',
+            title: `⚠️ Drift Alert`,
+            message: alert.message,
+            duration: 10000,
+          });
+          // Auto-acknowledge after showing
+          api.acknowledgeAlert(alert.id, 'seen').catch(() => {});
+        }
+      } catch (e) { /* ignore if offline */ }
+    };
+    // Check now and every 30 minutes
+    setTimeout(checkAlerts, 10000); // 10 seconds after boot
+    setInterval(checkAlerts, 30 * 60 * 1000);
   }
 
   renderLoginMode() {
@@ -185,6 +224,7 @@ class App {
     router.register('/rewards', () => RewardsPage());
     router.register('/insights', () => InsightsPage());
     router.register('/settings', () => SettingsPage());
+    router.register('/weekly-review', () => WeeklyReviewPage());
     router.register('/login', () => LoginPage());
 
     // Route guard

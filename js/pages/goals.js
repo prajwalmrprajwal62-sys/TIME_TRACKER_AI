@@ -8,6 +8,7 @@ import { planner } from '../agents/planner.js';
 import { collector } from '../agents/collector.js';
 import { showToast } from '../components/toast.js';
 import { showModal, showConfirm } from '../components/modal.js';
+import { api } from '../core/api.js';
 
 export function GoalsPage() {
   function render() {
@@ -91,6 +92,28 @@ export function GoalsPage() {
   }
 
   function mount() {
+    // Hydrate from backend (source of truth)
+    if (api.isAuthenticated && api.isOnline) {
+      api.getGoals().then(backendGoals => {
+        if (backendGoals && Array.isArray(backendGoals) && backendGoals.length > 0) {
+          // Merge backend goals into state (backend is source of truth)
+          const formatted = backendGoals.map(g => ({
+            id: g.id,
+            title: g.title,
+            type: g.type || 'General',
+            deadline: g.deadline || null,
+            dailyEffort: g.daily_effort || 2,
+            progress: g.progress || 0,
+            priority: g.priority || 'medium',
+            milestones: [],
+            createdAt: g.created_at,
+          }));
+          state.set('goals', formatted);
+          refreshPage();
+        }
+      }).catch(e => console.warn('Goals hydration failed:', e.message));
+    }
+
     // Add goal button
     const addBtns = document.querySelectorAll('#add-goal-btn, #add-goal-empty');
     addBtns.forEach(btn => {
@@ -106,8 +129,12 @@ export function GoalsPage() {
           message: 'This action cannot be undone.',
           confirmText: 'Delete',
           danger: true,
-          onConfirm: () => {
+          onConfirm: async () => {
             state.deleteGoal(id);
+            // Sync to backend
+            if (api.isAuthenticated && api.isOnline) {
+              try { await api.deleteGoal(id); } catch(e) { console.warn('Goal delete sync:', e.message); }
+            }
             showToast('info', 'Goal deleted');
             refreshPage();
           }
@@ -132,9 +159,11 @@ export function GoalsPage() {
           title: 'Update Progress',
           content,
           actions: [
-            { id: 'save', label: 'Save', class: 'btn btn-primary', onClick: (close) => {
+            { id: 'save', label: 'Save', class: 'btn btn-primary', onClick: async (close) => {
               const val = document.getElementById('progress-slider')?.value || current;
               state.updateGoal(id, { progress: parseInt(val) });
+              // Sync to backend
+              api.writeWithFallback(`/goals/${id}`, 'PUT', { progress: parseInt(val) }, `Goal progress: ${val}%`);
               showToast('success', 'Progress updated!');
               close();
               refreshPage();
@@ -190,11 +219,11 @@ export function GoalsPage() {
       content,
       actions: [
         { id: 'cancel', label: 'Cancel', class: 'btn-ghost', onClick: (close) => close() },
-        { id: 'create', label: 'Create Goal', class: 'btn btn-primary', onClick: (close) => {
+        { id: 'create', label: 'Create Goal', class: 'btn btn-primary', onClick: async (close) => {
           const title = document.getElementById('goal-title')?.value?.trim();
           if (!title) { showToast('warning', 'Title required'); return; }
           
-          state.addGoal({
+          const goalData = {
             id: generateId(),
             title,
             type: document.getElementById('goal-type')?.value || 'Other',
@@ -204,7 +233,20 @@ export function GoalsPage() {
             milestones: [],
             priority: 'medium',
             createdAt: new Date().toISOString(),
-          });
+          };
+
+          state.addGoal(goalData);
+
+          // Sync to backend
+          api.writeWithFallback('/goals', 'POST', {
+            title: goalData.title,
+            type: goalData.type,
+            deadline: goalData.deadline,
+            daily_effort: goalData.dailyEffort,
+            progress: 0,
+            priority: goalData.priority,
+            status: 'active',
+          }, `Goal: ${goalData.title}`);
 
           collector.unlockAchievement('first_goal');
           showToast('success', 'Goal created! 🎯', title);

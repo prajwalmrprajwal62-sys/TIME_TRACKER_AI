@@ -1,11 +1,8 @@
-// ============================================
-// STD TIME TRACKER — Rewards Page
-// ============================================
-
 import { state } from '../core/state.js';
 import { formatDate, daysAgo } from '../core/utils.js';
 import { enforcer } from '../agents/enforcer.js';
 import { ACHIEVEMENTS, LEVEL_THRESHOLDS, REAL_WORLD_REWARDS } from '../data/rewards-bank.js';
+import { api } from '../core/api.js';
 
 export function RewardsPage() {
   function render() {
@@ -173,7 +170,40 @@ export function RewardsPage() {
     `;
   }
 
-  function mount() {}
+  function mount() {
+    // Hydrate from backend (source of truth)
+    if (api.isAuthenticated && api.isOnline) {
+      api.getRewards().then(backendRewards => {
+        if (backendRewards && typeof backendRewards === 'object') {
+          // Update local state with backend values
+          if (backendRewards.xp !== undefined) {
+            const rewards = state.get('rewards') || {};
+            rewards.xp = backendRewards.xp;
+            rewards.level = backendRewards.level || rewards.level;
+            rewards.levelName = backendRewards.level_name || rewards.levelName;
+            rewards.achievements = backendRewards.achievements || rewards.achievements;
+            state.set('rewards', rewards);
+          }
+          if (backendRewards.current_streak !== undefined) {
+            const streaks = state.get('streaks') || {};
+            streaks.current = backendRewards.current_streak;
+            streaks.best = backendRewards.best_streak || streaks.best;
+            state.set('streaks', streaks);
+          }
+          refreshPage();
+        }
+      }).catch(e => console.warn('Rewards hydration failed:', e.message));
+    }
+  }
+
+  function refreshPage() {
+    const container = document.getElementById('app-content');
+    if (container) {
+      const page = RewardsPage();
+      container.innerHTML = page.render();
+      page.mount();
+    }
+  }
 
   return { render, mount };
 }

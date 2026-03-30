@@ -6,8 +6,10 @@ import { state } from '../core/state.js';
 import { router } from '../core/router.js';
 import { $, today, formatDate, getCurrentTime, formatTime, formatDuration } from '../core/utils.js';
 import { collector } from '../agents/collector.js';
-import { classifyActivity, CATEGORIES, getCategoryByName } from '../data/categories.js';
+import { classifyActivity, CATEGORIES, getCategoryByName, getWastedCategories } from '../data/categories.js';
 import { showToast } from '../components/toast.js';
+import { showModal } from '../components/modal.js';
+import { api } from '../core/api.js';
 
 export function LogEntryPage() {
   let selectedCategory = null;
@@ -298,9 +300,16 @@ export function LogEntryPage() {
     if (result.success) {
       showToast('success', 'Activity Logged! ✓', `${activity} — ${formatDuration(result.log.duration)}`);
       
+      // Check if wasted category → show friction modal
+      const wastedCats = getWastedCategories();
+      const logCategory = result.log.category;
+      if (wastedCats.includes(logCategory)) {
+        showFrictionModal(result.log);
+      }
+
       // Clear form
       if ($('#log-activity')) $('#log-activity').value = '';
-      if ($('#log-start')) $('#log-start').value = endTime; // Next entry starts where this one ended
+      if ($('#log-start')) $('#log-start').value = endTime;
       if ($('#log-notes')) $('#log-notes').value = '';
       selectedCategory = null;
       updateCategoryDisplay(null);
@@ -310,6 +319,59 @@ export function LogEntryPage() {
     } else {
       showToast('error', 'Cannot log', result.error);
     }
+  }
+
+  function showFrictionModal(log) {
+    const content = `
+      <div style="margin-bottom: var(--space-4);">
+        <p class="text-sm text-secondary" style="margin-bottom: var(--space-4);">
+          You just logged <strong>${log.activity}</strong> as <strong>${log.category}</strong>.<br>
+          Understanding <em>why</em> helps the system find your patterns.
+        </p>
+        <div class="flex-col gap-2" id="friction-options">
+          <button class="btn btn-secondary friction-btn" data-reason="bored" style="justify-content:flex-start; text-align:left;">
+            🎯 <strong>Bored</strong> — nothing engaging to do
+          </button>
+          <button class="btn btn-secondary friction-btn" data-reason="stuck" style="justify-content:flex-start; text-align:left;">
+            🧱 <strong>Stuck</strong> — couldn't figure out my task
+          </button>
+          <button class="btn btn-secondary friction-btn" data-reason="tired" style="justify-content:flex-start; text-align:left;">
+            😴 <strong>Tired</strong> — low energy, needed escape
+          </button>
+          <button class="btn btn-secondary friction-btn" data-reason="autopilot" style="justify-content:flex-start; text-align:left;">
+            🤖 <strong>Autopilot</strong> — opened app without thinking
+          </button>
+          <button class="btn btn-secondary friction-btn" data-reason="emotional" style="justify-content:flex-start; text-align:left;">
+            😰 <strong>Emotional</strong> — stressed, anxious, or upset
+          </button>
+        </div>
+      </div>
+    `;
+
+    const modal = showModal({
+      title: '💡 Why did you go there?',
+      content,
+      actions: [
+        { id: 'skip', label: 'Skip', class: 'btn-ghost', onClick: (close) => close() },
+      ],
+    });
+
+    // Bind friction buttons
+    setTimeout(() => {
+      document.querySelectorAll('.friction-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const reason = btn.dataset.reason;
+          // Update the log in state with friction data
+          state.updateLog(log.id, { frictionReason: reason });
+          // Sync to backend
+          api.writeWithFallback(`/logs/${log.id}`, 'PUT', { friction_reason: reason }, `Friction: ${reason}`);
+          showToast('info', 'Pattern tracked', `Friction: ${reason}`);
+          // Close the modal
+          const overlay = document.querySelector('.modal-overlay');
+          if (overlay) overlay.remove();
+        });
+      });
+    }, 100);
   }
 
   function updateCategoryDisplay(category) {

@@ -23,11 +23,12 @@ def save_plan(data: PlanSave, user: User = Depends(get_current_user), db: Sessio
     existing = db.query(DailyPlan).filter(DailyPlan.user_id == user.id, DailyPlan.date == data.date).first()
     if existing:
         existing.plan_json = data.plan_json
+        existing.generated_by = data.generated_by
         db.commit()
         db.refresh(existing)
         return PlanResponse.model_validate(existing)
 
-    plan = DailyPlan(user_id=user.id, date=data.date, plan_json=data.plan_json)
+    plan = DailyPlan(user_id=user.id, date=data.date, plan_json=data.plan_json, generated_by=data.generated_by)
     db.add(plan)
     db.commit()
     db.refresh(plan)
@@ -97,8 +98,15 @@ def process_day(data: ProcessDayRequest, user: User = Depends(get_current_user),
     ).first()
     if existing_streak:
         existing_streak.compliance_score = data.compliance_score
+        existing_streak.deep_work_minutes = data.deep_work_minutes
+        existing_streak.wasted_minutes = data.wasted_minutes
     else:
-        streak = StreakHistory(user_id=user.id, date=data.date, compliance_score=data.compliance_score)
+        streak = StreakHistory(
+            user_id=user.id, date=data.date,
+            compliance_score=data.compliance_score,
+            deep_work_minutes=data.deep_work_minutes,
+            wasted_minutes=data.wasted_minutes,
+        )
         db.add(streak)
 
     db.commit()

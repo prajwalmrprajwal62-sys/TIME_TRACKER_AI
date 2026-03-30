@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { path: '/enforcer', label: 'Enforcer', icon: 'enforcer' },
   { path: '/rewards', label: 'Rewards', icon: 'rewards' },
   { path: '/insights', label: 'Insights', icon: 'insights' },
+  { path: '/weekly-review', label: 'Weekly Review', icon: 'review' },
   { path: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
@@ -83,7 +84,7 @@ export function renderNavbar() {
       </nav>
 
       <div class="sidebar-footer">
-        <div class="sidebar-version">v1.0 — Built for Champions</div>
+        <div class="sidebar-version">v3.0 — Built for Champions</div>
       </div>
     </div>
   `;

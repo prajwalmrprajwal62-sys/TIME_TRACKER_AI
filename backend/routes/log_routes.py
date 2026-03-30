@@ -9,6 +9,7 @@ from database import get_db
 from models import User, TimeLog
 from schemas import TimeLogCreate, TimeLogResponse, TimeLogUpdate, BulkLogSync, DailySummaryResponse
 from auth import get_current_user
+from utils import sanitize_input
 
 router = APIRouter(prefix="/api/logs", tags=["Time Logs"])
 
@@ -17,14 +18,14 @@ router = APIRouter(prefix="/api/logs", tags=["Time Logs"])
 def create_log(data: TimeLogCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     log = TimeLog(
         user_id=user.id,
-        activity=data.activity,
+        activity=sanitize_input(data.activity),
         category=data.category,
         start_time=data.start_time,
         end_time=data.end_time,
         duration=data.duration,
         mood=data.mood,
         energy=data.energy,
-        notes=data.notes,
+        notes=sanitize_input(data.notes) if data.notes else "",
         date=data.date,
     )
     db.add(log)
@@ -120,6 +121,8 @@ def update_log(
         raise HTTPException(status_code=404, detail="Log not found")
 
     for field, value in data.model_dump(exclude_none=True).items():
+        if field in ["activity", "notes", "friction_reason", "friction_text"] and isinstance(value, str):
+            value = sanitize_input(value)
         setattr(log, field, value)
 
     db.commit()

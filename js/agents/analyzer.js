@@ -422,6 +422,100 @@ class Analyzer {
 
     return { today: todayAnalysis, week: weekAnalysis, userType };
   }
+
+  /**
+   * Energy-Aware Scheduling: Compute user's energy profile by hour slot.
+   * Analyzes last 14 days of logs to find when user has highest/lowest energy
+   * and when they are most/least productive.
+   */
+  getEnergyProfile(days = 14) {
+    const slots = {};
+    // Initialize hourly slots (6 AM to midnight)
+    for (let h = 6; h <= 23; h++) {
+      slots[h] = { energySum: 0, moodSum: 0, productiveMin: 0, wastedMin: 0, count: 0 };
+    }
+
+    for (let d = 0; d < days; d++) {
+      const date = daysAgo(d);
+      const logs = state.getLogsForDate(date);
+      logs.forEach(log => {
+        const hour = parseInt(log.startTime?.split(':')[0]);
+        if (hour >= 6 && hour <= 23 && slots[hour]) {
+          slots[hour].energySum += (log.energy || 3);
+          slots[hour].moodSum += (log.mood || 3);
+          slots[hour].count++;
+          if (getProductiveCategories().includes(log.category)) {
+            slots[hour].productiveMin += log.duration;
+          } else if (getWastedCategories().includes(log.category)) {
+            slots[hour].wastedMin += log.duration;
+          }
+        }
+      });
+    }
+
+    // Calculate averages and classify
+    const profile = [];
+    const TIME_BLOCKS = [
+      { name: 'Early Morning', hours: [6, 7, 8], emoji: '🌅' },
+      { name: 'Morning', hours: [9, 10, 11], emoji: '☀️' },
+      { name: 'Midday', hours: [12, 13], emoji: '🌤️' },
+      { name: 'Afternoon', hours: [14, 15, 16], emoji: '🌇' },
+      { name: 'Evening', hours: [17, 18, 19], emoji: '🌆' },
+      { name: 'Night', hours: [20, 21, 22, 23], emoji: '🌙' },
+    ];
+
+    TIME_BLOCKS.forEach(block => {
+      let totalEnergy = 0, totalMood = 0, totalProd = 0, totalWaste = 0, totalCount = 0;
+      block.hours.forEach(h => {
+        const s = slots[h];
+        totalEnergy += s.energySum;
+        totalMood += s.moodSum;
+        totalProd += s.productiveMin;
+        totalWaste += s.wastedMin;
+        totalCount += s.count;
+      });
+
+      const avgEnergy = totalCount > 0 ? +(totalEnergy / totalCount).toFixed(1) : 3;
+      const avgMood = totalCount > 0 ? +(totalMood / totalCount).toFixed(1) : 3;
+      const prodRatio = (totalProd + totalWaste) > 0 
+        ? Math.round((totalProd / (totalProd + totalWaste)) * 100) 
+        : 50;
+
+      let level;
+      if (avgEnergy >= 4) level = 'peak';
+      else if (avgEnergy >= 3) level = 'moderate';
+      else level = 'low';
+
+      profile.push({
+        name: block.name,
+        emoji: block.emoji,
+        hours: block.hours,
+        avgEnergy,
+        avgMood,
+        productiveMinutes: totalProd,
+        wastedMinutes: totalWaste,
+        productivityRatio: prodRatio,
+        level,
+        dataPoints: totalCount,
+        recommendation: level === 'peak' 
+          ? 'Deep Work — your energy peaks here' 
+          : level === 'moderate' 
+            ? 'College / Light tasks — good but not peak'
+            : 'Rest / Routine — energy is low, don\'t force deep work',
+      });
+    });
+
+    // Find peak and dip
+    const peakSlot = profile.reduce((best, s) => s.avgEnergy > best.avgEnergy ? s : best, profile[0]);
+    const dipSlot = profile.reduce((worst, s) => s.avgEnergy < worst.avgEnergy ? s : worst, profile[0]);
+
+    return {
+      slots: profile,
+      peakSlot,
+      dipSlot,
+      hasData: profile.some(s => s.dataPoints > 0),
+    };
+  }
 }
 
 export const analyzer = new Analyzer();

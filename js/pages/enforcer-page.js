@@ -17,6 +17,7 @@ export function EnforcerPage() {
     const patterns = enforcer.detectLazinessPatterns();
     const adjustments = enforcer.suggestNextDayAdjustments();
     const weekHistory = enforcer.getWeeklyComplianceHistory();
+    const recovery = enforcer.getRecoveryProtocol();
 
     return `
       <div class="page-container stagger-children">
@@ -24,6 +25,35 @@ export function EnforcerPage() {
           <h1>Enforcer</h1>
           <p>Your strict accountability system. No excuses, no shortcuts.</p>
         </div>
+
+        ${recovery.active ? `
+        <!-- Recovery Protocol -->
+        <div class="glass-card no-hover recovery-card mb-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span style="font-size:28px;">🔄</span>
+            <div>
+              <h3 class="font-semibold" style="color: var(--color-warning);">Recovery Protocol Active</h3>
+              <p class="text-sm text-secondary">${recovery.message}</p>
+            </div>
+            <span class="badge ${recovery.severity === 'critical' ? 'badge-danger' : 'badge-warning'}" style="margin-left:auto;">${recovery.severity}</span>
+          </div>
+          <div class="flex-col gap-3">
+            ${recovery.recoveryPlan.map((step, idx) => `
+              <div class="recovery-step">
+                <div class="recovery-step-number">${idx + 1}</div>
+                <div class="recovery-step-content">
+                  <div class="recovery-step-title">${step.title}</div>
+                  <div class="recovery-step-desc">${step.description}</div>
+                </div>
+                ${step.duration > 0 ? `<span class="badge badge-info" style="font-size:10px; white-space:nowrap;">${step.duration}m</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          <div class="mt-4 text-xs text-muted text-center">
+            💛 Recovery isn't about being perfect. It's about showing up imperfectly.
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Compliance Hero -->
         <div class="glass-card no-hover compliance-hero mb-8">

@@ -8,6 +8,7 @@ import { today, daysAgo, formatDuration, mean } from '../core/utils.js';
 import { collector } from './collector.js';
 import { XP_RULES, ACHIEVEMENTS, getComplianceFeedback, REAL_WORLD_REWARDS } from '../data/rewards-bank.js';
 import { getProductiveCategories, getWastedCategories } from '../data/categories.js';
+import { api } from '../core/api.js';
 
 class Enforcer {
   calculateCompliance(date = null) {
@@ -176,16 +177,32 @@ class Enforcer {
     const compliance = this.calculateCompliance(date);
     
     // Award XP
-    this.awardDailyXP(date, compliance);
+    const xpEarned = this.awardDailyXP(date, compliance);
     
     // Update streak
     this.updateStreak(date, compliance.score);
     
     // Check achievements
-    this.checkAchievements(date, compliance);
+    const earnedAchvs = this.checkAchievements(date, compliance);
     
     // Emit compliance update
     events.emit(EVENTS.COMPLIANCE_UPDATED, { date, compliance });
+
+    // Sync to backend (Critical audit requirement)
+    const rewards = state.get('rewards') || {};
+    const streaks = state.get('streaks') || { current: 0, best: 0 };
+    const achievements = state.get('rewards.achievements') || [];
+    
+    api.writeWithFallback('/rewards/process-day', 'POST', {
+      date: date,
+      xp_earned: xpEarned,
+      level: rewards.level || 1,
+      level_name: rewards.levelName || 'Novice',
+      compliance_score: compliance.score,
+      streak_current: streaks.current,
+      streak_best: streaks.best,
+      achievements: achievements
+    }, `End of day processing: ${date}`);
 
     return compliance;
   }
@@ -405,6 +422,105 @@ class Enforcer {
       });
     }
     return data;
+  }
+
+  /**
+   * Recovery Protocol: Detects when user has had 2+ bad days in a row
+   * and generates a compassionate micro-recovery plan instead of punishment.
+   */
+  getRecoveryProtocol() {
+    const BAD_THRESHOLD = 40;
+    let consecutiveBadDays = 0;
+    const badDays = [];
+
+    // Check last 5 days for consecutive bad performance
+    for (let i = 0; i < 5; i++) {
+      const date = daysAgo(i);
+      const compliance = this.calculateCompliance(date);
+      if (compliance.hasLogs && compliance.score < BAD_THRESHOLD) {
+        consecutiveBadDays++;
+        badDays.push({ date, score: compliance.score, productive: compliance.productive, wasted: compliance.wasted });
+      } else {
+        break; // Stop at the first good day
+      }
+    }
+
+    if (consecutiveBadDays < 2) {
+      return { active: false, consecutiveBadDays: 0 };
+    }
+
+    // Determine severity and generate recovery plan
+    const severity = consecutiveBadDays >= 4 ? 'critical' : consecutiveBadDays >= 3 ? 'high' : 'moderate';
+    const recoveryPlan = this.generateRecoveryPlan(severity, badDays);
+
+    return {
+      active: true,
+      consecutiveBadDays,
+      severity,
+      badDays,
+      recoveryPlan,
+      message: severity === 'critical'
+        ? `You've had ${consecutiveBadDays} rough days in a row. Let's stop the spiral with a gentle reset.`
+        : severity === 'high'
+          ? `3 days below ${BAD_THRESHOLD}%. Time for a recovery protocol — smaller wins today.`
+          : `2 bad days in a row. Let's break the pattern with a micro-plan.`,
+    };
+  }
+
+  generateRecoveryPlan(severity, badDays) {
+    const steps = [];
+
+    // Step 1: Always start with ONE small win
+    steps.push({
+      title: 'One Small Win',
+      description: 'Start with just 25 minutes of focused Deep Work. Set a timer. Nothing else matters.',
+      duration: 25,
+      category: 'Deep Work',
+      priority: 'critical',
+    });
+
+    // Step 2: Identify the trigger pattern
+    const avgWasted = badDays.reduce((sum, d) => sum + (d.wasted || 0), 0) / badDays.length;
+    if (avgWasted > 120) {
+      steps.push({
+        title: 'Phone Lockdown',
+        description: `You averaged ${formatDuration(avgWasted)} wasted/day. Put your phone in another room for the next Deep Work session.`,
+        duration: 0,
+        category: 'Rule',
+        priority: 'high',
+      });
+    }
+
+    // Step 3: Build momentum with a second small session
+    steps.push({
+      title: 'Second Session',
+      description: 'After a 15-minute real break (walk, stretch), do another 25 minutes. That\'s 50 total — a recoverable day.',
+      duration: 25,
+      category: 'Deep Work',
+      priority: 'high',
+    });
+
+    // Step 4: Reward immediately
+    steps.push({
+      title: 'Reward Yourself',
+      description: 'After completing 50 minutes of Deep Work, take 30 minutes guilt-free for anything you want.',
+      duration: 30,
+      category: 'Good Rest',
+      priority: 'normal',
+    });
+
+    // Step 5: Evening reflection (if critical)
+    if (severity === 'critical' || severity === 'high') {
+      steps.push({
+        title: 'Evening Check-In',
+        description: 'Before bed, log your activities and write one sentence: "What made today different?" — this breaks the autopilot cycle.',
+        duration: 5,
+        category: 'Reflection',
+        priority: 'normal',
+      });
+    }
+
+    return steps;
   }
 }
 

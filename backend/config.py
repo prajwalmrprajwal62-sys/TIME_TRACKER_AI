@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "timeforge-dev-key-change-in-production"
     DATABASE_URL: str = "sqlite:///./timeforge.db"
     GEMINI_API_KEY: str = ""
-    ACCESS_TOKEN_EXPIRE_HOURS: int = 72
+    ACCESS_TOKEN_EXPIRE_HOURS: int = 1
     ALGORITHM: str = "HS256"
 
     class Config:

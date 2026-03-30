@@ -6,8 +6,10 @@ import { state } from '../core/state.js';
 import { today, formatDate, formatTime, formatDuration, getWeekDates, getDayName } from '../core/utils.js';
 import { planner } from '../agents/planner.js';
 import { collector } from '../agents/collector.js';
+import { analyzer } from '../agents/analyzer.js';
 import { getCategoryByName, CATEGORIES } from '../data/categories.js';
 import { showToast } from '../components/toast.js';
+import { api } from '../core/api.js';
 
 export function PlannerPage() {
   function render() {
@@ -16,6 +18,11 @@ export function PlannerPage() {
     const recoverable = planner.getRecoverableTime();
     const habits = planner.suggestHabitChanges();
     const weekDates = getWeekDates();
+    const energyProfile = analyzer.getEnergyProfile();
+
+    // Energy bar color helper
+    const energyColor = (level) => level === 'peak' ? 'var(--color-success)' : level === 'moderate' ? 'var(--color-warning)' : 'var(--color-danger)';
+    const energyBarWidth = (avg) => Math.round((avg / 5) * 100);
 
     return `
       <div class="page-container stagger-children">
@@ -24,9 +31,16 @@ export function PlannerPage() {
             <h1>Daily Planner</h1>
             <p>Your optimized schedule based on behavioral data and goals.</p>
           </div>
-          <button class="btn btn-primary" id="gen-plan-btn">
-            ⚡ Generate Today's Plan
-          </button>
+          <div class="flex gap-2">
+            ${api.isAuthenticated && api.isOnline ? `
+              <button class="btn btn-secondary" id="ai-plan-btn">
+                🤖 AI Plan
+              </button>
+            ` : ''}
+            <button class="btn btn-primary" id="gen-plan-btn">
+              ⚡ Generate Today's Plan
+            </button>
+          </div>
         </div>
 
         <!-- Recoverable Time -->
@@ -49,6 +63,40 @@ export function PlannerPage() {
           </div>
         </div>
         ` : ''}
+
+        <!-- Energy Profile -->
+        <div class="glass-card no-hover mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-sm" style="text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary);">⚡ YOUR ENERGY PROFILE</h3>
+            ${energyProfile.hasData ? `
+              <span class="text-xs text-muted">Peak: ${energyProfile.peakSlot.emoji} ${energyProfile.peakSlot.name}</span>
+            ` : `<span class="text-xs text-muted">Log more activities to build your profile</span>`}
+          </div>
+          <div class="flex-col gap-3">
+            ${energyProfile.slots.map(slot => `
+              <div class="energy-slot-row">
+                <div class="energy-slot-label">
+                  <span class="energy-slot-emoji">${slot.emoji}</span>
+                  <span class="energy-slot-name">${slot.name}</span>
+                </div>
+                <div class="energy-bar-container">
+                  <div class="energy-bar" style="width:${energyBarWidth(slot.avgEnergy)}%; background:${energyColor(slot.level)};"></div>
+                </div>
+                <div class="energy-slot-meta">
+                  <span class="energy-level-badge energy-${slot.level}">${slot.level}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          ${energyProfile.hasData ? `
+            <div class="mt-4 p-3" style="background:rgba(124,58,237,0.06); border-radius:var(--radius-md); border:1px solid rgba(124,58,237,0.15);">
+              <div class="text-xs font-semibold" style="color:var(--accent-primary-light);">💡 Scheduling Tip</div>
+              <div class="text-xs text-secondary mt-1">
+                Schedule Deep Work during <strong>${energyProfile.peakSlot.name}</strong> (${energyProfile.peakSlot.emoji}) and routine tasks during <strong>${energyProfile.dipSlot.name}</strong> (${energyProfile.dipSlot.emoji}).
+              </div>
+            </div>
+          ` : ''}
+        </div>
 
         <!-- Week Overview -->
         <div class="glass-card no-hover mb-6">
@@ -128,21 +176,95 @@ export function PlannerPage() {
   }
 
   function mount() {
+    // Hydrate weekly plans from backend (source of truth)
+    if (api.isAuthenticated && api.isOnline) {
+      api.getPlans().then(backendPlans => {
+        if (backendPlans && Array.isArray(backendPlans)) {
+          let updated = false;
+          const plans = state.get('plans') || {};
+          
+          backendPlans.forEach(bp => {
+            if (bp.date && bp.plan_json) {
+              try {
+                const blocks = JSON.parse(bp.plan_json);
+                if (Array.isArray(blocks) && blocks.length > 0) {
+                  // Only update if local is missing or we want to force strict sync
+                  if (!plans[bp.date]) {
+                    plans[bp.date] = blocks;
+                    updated = true;
+                  }
+                }
+              } catch (e) {}
+            }
+          });
+
+          if (updated) {
+            state.set('plans', plans);
+            const todayDate = today();
+            if (plans[todayDate]) {
+              refreshPage();
+            }
+          }
+        }
+      }).catch(e => console.warn('Weekly plans hydration failed:', e.message));
+    }
+
     const genBtn = document.getElementById('gen-plan-btn');
     if (genBtn) {
       genBtn.addEventListener('click', () => {
         const plan = planner.generateDailyPlan();
         if (plan) {
+          // Sync to backend
+          api.writeWithFallback('/plans', 'POST', {
+            date: today(),
+            plan_json: JSON.stringify(plan),
+            generated_by: 'rule',
+          }, `Plan: ${today()}`);
+
           showToast('success', 'Plan Generated! 📋', `${plan.length} blocks created for today`);
-          // Re-render the page
-          const container = document.getElementById('app-content');
-          if (container) {
-            const page = PlannerPage();
-            container.innerHTML = page.render();
-            page.mount();
-          }
+          refreshPage();
         }
       });
+    }
+
+    // AI Plan button
+    const aiBtn = document.getElementById('ai-plan-btn');
+    if (aiBtn) {
+      aiBtn.addEventListener('click', async () => {
+        aiBtn.disabled = true;
+        aiBtn.textContent = '⏳ Generating...';
+        try {
+          const result = await api.safeAICall(() => api.generateAIPlan());
+          if (result && !result.error && result.plan) {
+            const planBlocks = result.plan;
+            // Save to state
+            const plans = state.get('plans') || {};
+            plans[today()] = planBlocks;
+            state.set('plans', plans);
+
+            showToast('success', '🤖 AI Plan Generated!', `${planBlocks.length} blocks based on your patterns`);
+            refreshPage();
+          } else {
+            showToast('warning', 'AI plan unavailable', result.message || 'Using rule-based plan instead');
+            // Fallback to rule-based
+            const plan = planner.generateDailyPlan();
+            if (plan) refreshPage();
+          }
+        } catch (e) {
+          showToast('error', 'AI planning failed', e.message);
+          aiBtn.disabled = false;
+          aiBtn.textContent = '✨ Generate AI Plan';
+        }
+      });
+    }
+  }
+
+  function refreshPage() {
+    const container = document.getElementById('app-content');
+    if (container) {
+      const page = PlannerPage();
+      container.innerHTML = page.render();
+      page.mount();
     }
   }
 

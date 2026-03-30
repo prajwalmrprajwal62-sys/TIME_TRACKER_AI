@@ -401,8 +401,11 @@ export function InsightsPage() {
         refreshBtn.disabled = true;
 
         try {
-          const result = await api.getAIAnalysis(7);
-          if (result.analysis) {
+          const result = await api.safeAICall(() => api.getAIAnalysis(7));
+          if (result.error) {
+            const container = document.getElementById('ai-analysis-container');
+            if (container) container.innerHTML = `<div class="text-center p-6"><p class="text-danger mb-2">⚠️</p><p class="text-sm text-secondary">${result.message}</p></div>`;
+          } else if (result.analysis) {
             aiAnalysis = result.analysis;
             const container = document.getElementById('ai-analysis-container');
             if (container) container.innerHTML = renderAIAnalysis(aiAnalysis);
@@ -433,8 +436,10 @@ export function InsightsPage() {
         resultEl.innerHTML = '<p class="text-center text-muted p-3">🤖 Analyzing scenario...</p>';
 
         try {
-          const result = await api.whatIfAnalysis(scenario);
-          if (result.time_saved_daily !== undefined) {
+          const result = await api.safeAICall(() => api.whatIfAnalysis(scenario));
+          if (result.error) {
+            resultEl.innerHTML = `<p class="text-center text-danger p-3">⚠️ ${result.message}</p>`;
+          } else if (result.time_saved_daily !== undefined) {
             resultEl.innerHTML = `
               <div class="glass-card no-hover" style="border-left: 3px solid var(--accent-primary);">
                 <div class="what-if-result mb-3">
@@ -469,8 +474,8 @@ export function InsightsPage() {
 
     // Load coaching message on mount (non-blocking)
     if (window.__timeforge_backend && api.isAuthenticated) {
-      api.getCoaching().then(result => {
-        if (result && result.message) {
+      api.safeAICall(() => api.getCoaching()).then(result => {
+        if (result && !result.error && result.message) {
           coaching = result;
           // Re-render just the coaching section would be complex, so we note it for next visit
         }
