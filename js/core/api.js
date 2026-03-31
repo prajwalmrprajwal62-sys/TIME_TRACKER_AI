@@ -10,7 +10,7 @@ import { syncQueue } from './sync-queue.js';
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE = isLocalhost
   ? 'http://localhost:8000/api'
-  : (window.__TIMEFORGE_API_URL || 'https://timeforge-backend-production.up.railway.app/api');
+  : (window.__TIMEFORGE_API_URL || 'https://time-tracker-ai-shcd.onrender.com/api');
 const TOKEN_KEY = 'timeforge_auth_token';
 const USER_KEY = 'timeforge_auth_user';
 
