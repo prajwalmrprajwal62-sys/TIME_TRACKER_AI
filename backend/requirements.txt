@@ -9,4 +9,5 @@ google-genai==1.5.0
 python-multipart==0.0.12
 gunicorn==22.0.0
 psycopg2-binary==2.9.9
-bleach
+bleach==6.1.0
+alembic==1.13.1

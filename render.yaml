@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: timeforge-backend
+    env: python
+    region: oregon 
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && alembic upgrade head && python main.py"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: timeforge-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+
+databases:
+  - name: timeforge-db
+    databaseName: timeforge
+    user: timeforge
