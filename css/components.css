@@ -932,3 +932,596 @@
   transform: translateX(20px);
   background: white;
 }
+
+/* ============================================
+   SDG 8 Chatbot Styles
+   ============================================ */
+
+/* --- Chatbot Container --- */
+.chatbot-container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: var(--z-chatbot);
+  font-family: var(--font-body);
+}
+
+/* --- Toggle Button --- */
+.chatbot-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 12px 20px;
+  background: var(--gradient-sdg8);
+  color: white;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  box-shadow: var(--sdg8-glow), var(--shadow-lg);
+  transition: all var(--transition-base);
+  position: relative;
+  border: none;
+}
+
+.chatbot-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(162, 25, 66, 0.5), var(--shadow-xl);
+}
+
+.chatbot-container.open .chatbot-toggle {
+  display: none;
+}
+
+.chatbot-toggle-icon {
+  font-size: 18px;
+}
+
+.chatbot-toggle-label {
+  white-space: nowrap;
+}
+
+.chatbot-toggle-pulse {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+  animation: sdgPulse 2s ease-in-out infinite;
+}
+
+/* --- Chat Window --- */
+.chatbot-window {
+  display: none;
+  flex-direction: column;
+  width: 380px;
+  height: 520px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl), var(--sdg8-glow);
+  overflow: hidden;
+}
+
+.chatbot-container.open .chatbot-window {
+  display: flex;
+  animation: chatSlideUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --- Header --- */
+.chatbot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  background: var(--gradient-sdg8);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
+.chatbot-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.chatbot-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.chatbot-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
+.chatbot-header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.chatbot-header-title {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: white;
+}
+
+.chatbot-header-subtitle {
+  font-size: 10px;
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chatbot-close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  font-size: 14px;
+}
+
+.chatbot-close:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* --- Messages Area --- */
+.chatbot-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chatbot-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chatbot-messages::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: var(--radius-full);
+}
+
+/* --- Chat Messages --- */
+.chat-message {
+  display: flex;
+  animation: chatMessageIn 300ms ease;
+}
+
+.chat-message.user {
+  justify-content: flex-end;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.chat-message.assistant .chat-bubble {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  border-top-left-radius: var(--radius-sm);
+}
+
+.chat-message.user .chat-bubble {
+  background: var(--gradient-sdg8);
+  color: white;
+  border-top-right-radius: var(--radius-sm);
+}
+
+.chat-bubble strong {
+  color: var(--sdg8-light);
+}
+
+.chat-message.user .chat-bubble strong {
+  color: white;
+}
+
+.chat-bubble code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.chat-bubble h3, .chat-bubble h4 {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--text-primary);
+}
+
+.chat-bubble .chat-list-item {
+  padding: 2px 0;
+  font-size: var(--text-xs);
+}
+
+.chat-bubble .chat-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-2) 0;
+  font-size: 11px;
+}
+
+.chat-bubble .chat-table th, .chat-bubble .chat-table td {
+  padding: 4px 6px;
+  border: 1px solid var(--glass-border);
+  text-align: left;
+}
+
+.chat-bubble .chat-table th {
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+
+/* Typing indicator */
+.typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4) !important;
+  min-width: 60px;
+}
+
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--sdg8-light);
+  border-radius: var(--radius-full);
+  animation: typingDot 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* --- Suggestion Chips --- */
+.chatbot-suggestions {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-top: 1px solid var(--glass-border);
+}
+
+.chatbot-suggestions::-webkit-scrollbar { height: 0; }
+
+.chatbot-suggestion-chip {
+  padding: 6px 12px;
+  background: var(--sdg8-soft);
+  border: 1px solid rgba(162, 25, 66, 0.3);
+  border-radius: var(--radius-full);
+  color: var(--sdg8-light);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chatbot-suggestion-chip:hover {
+  background: rgba(162, 25, 66, 0.25);
+  border-color: var(--sdg8-primary);
+  color: white;
+}
+
+/* --- Input Area --- */
+.chatbot-input-area {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--glass-border);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.chatbot-input {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-input);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: border-color var(--transition-fast);
+}
+
+.chatbot-input:focus {
+  border-color: var(--sdg8-primary);
+  box-shadow: 0 0 0 3px rgba(162, 25, 66, 0.15);
+  outline: none;
+}
+
+.chatbot-input::placeholder {
+  color: var(--text-muted);
+}
+
+.chatbot-send {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-sdg8);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  border: none;
+}
+
+.chatbot-send:hover {
+  transform: scale(1.05);
+  box-shadow: var(--sdg8-glow);
+}
+
+/* ============================================
+   SDG 8 Dashboard Components
+   ============================================ */
+
+/* --- SDG Badge (inline) --- */
+.sdg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 12px;
+  background: var(--sdg8-soft);
+  border: 1px solid rgba(162, 25, 66, 0.3);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sdg8-light);
+  white-space: nowrap;
+}
+
+.sdg-badge-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--sdg8-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  color: white;
+}
+
+/* --- SDG Index Section --- */
+.sdg-index-section {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
+
+.sdg-index-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-sdg8-blend);
+}
+
+.sdg-index-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.sdg-index-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sdg-index-title h3 {
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+/* --- SDG Score Gauge --- */
+.sdg-gauge-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.sdg-gauge {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.sdg-gauge svg {
+  transform: rotate(-90deg);
+  width: 140px;
+  height: 140px;
+}
+
+.sdg-gauge .gauge-bg {
+  fill: none;
+  stroke: var(--bg-elevated);
+  stroke-width: 10;
+}
+
+.sdg-gauge .gauge-fill {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sdg-gauge-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.sdg-gauge-score {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  display: block;
+}
+
+.sdg-gauge-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* --- SDG Comparison Cards --- */
+.sdg-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  flex: 1;
+}
+
+.sdg-comparison-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  transition: all var(--transition-fast);
+}
+
+.sdg-comparison-card:hover {
+  border-color: var(--glass-border-hover);
+}
+
+.sdg-comparison-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-2);
+}
+
+.sdg-comparison-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-1);
+}
+
+.sdg-comparison-vs {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.sdg-comparison-rank {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: var(--space-2);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+}
+
+.sdg-comparison-rank.above {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.sdg-comparison-rank.below {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+/* --- SDG Banner --- */
+.sdg-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  background: linear-gradient(135deg, rgba(162, 25, 66, 0.12), rgba(124, 58, 237, 0.08));
+  border: 1px solid rgba(162, 25, 66, 0.2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.sdg-banner-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.sdg-banner strong {
+  color: var(--sdg8-light);
+}
+
+/* --- Responsive Chatbot --- */
+@media (max-width: 768px) {
+  .chatbot-container {
+    bottom: 80px;
+    right: var(--space-4);
+  }
+
+  .chatbot-window {
+    width: calc(100vw - 32px);
+    height: 420px;
+    max-width: 380px;
+  }
+
+  .chatbot-toggle-label {
+    display: none;
+  }
+
+  .chatbot-toggle {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    padding: 0;
+    justify-content: center;
+  }
+
+  .sdg-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sdg-gauge-container {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+

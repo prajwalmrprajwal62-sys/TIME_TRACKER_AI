@@ -40,8 +40,12 @@ export function renderNavbar() {
           <div class="logo-icon gradient-animate" style="background: var(--gradient-primary); width:36px; height:36px; border-radius: var(--radius-md); display:flex; align-items:center; justify-content:center; font-size:18px;">⏱️</div>
           <div class="logo-text">
             <span class="logo-title">TimeForge</span>
-            <span class="logo-subtitle">Intelligence Engine</span>
+            <span class="logo-subtitle">SDG 8 Productivity Analytics</span>
           </div>
+        </div>
+        <div class="sdg-badge" style="margin-top: 8px;">
+          <span class="sdg-badge-icon">8</span>
+          <span>Decent Work & Growth</span>
         </div>
       </div>
 
@@ -84,7 +88,7 @@ export function renderNavbar() {
       </nav>
 
       <div class="sidebar-footer">
-        <div class="sidebar-version">v3.0 — Built for Champions</div>
+        <div class="sidebar-version">v3.0 — Contributing to SDG 8.5</div>
       </div>
     </div>
   `;

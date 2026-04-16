@@ -130,6 +130,18 @@
   --sidebar-collapsed: 72px;
   --header-height: 0px;
   --content-max-width: 1200px;
+
+  /* SDG 8 — Decent Work & Economic Growth */
+  --sdg8-primary: #A21942;
+  --sdg8-dark: #8B1538;
+  --sdg8-light: #c94c6e;
+  --sdg8-soft: rgba(162, 25, 66, 0.15);
+  --sdg8-glow: 0 0 20px rgba(162, 25, 66, 0.3);
+  --gradient-sdg8: linear-gradient(135deg, #A21942, #d4547a);
+  --gradient-sdg8-blend: linear-gradient(135deg, #7c3aed, #A21942, #06b6d4);
+
+  /* Chatbot */
+  --z-chatbot: 450;
 }
 
 /* --- CSS Reset --- */

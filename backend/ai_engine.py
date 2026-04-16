@@ -242,3 +242,46 @@ def analyze_what_if(
     )
 
     return _call_gemini(prompt)
+
+
+def chat_with_advisor(
+    message: str,
+    context: dict,
+    user_id: int,
+) -> Optional[dict]:
+    """Chat with the SDG 8 Productivity Advisor."""
+    from prompts import SDG_CHAT_PROMPT
+
+    # Short-lived cache to prevent rapid duplicate questions
+    import hashlib
+    msg_hash = hashlib.md5(message.lower().strip().encode()).hexdigest()[:8]
+    cache_key = f"chat_{user_id}_{msg_hash}"
+    cached = _get_cache(cache_key)
+    if cached:
+        cached["_source"] = "cached"
+        return cached
+
+    prompt = SDG_CHAT_PROMPT.format(
+        user_name=context.get("user_name", "Student"),
+        deep_work_hours=context.get("deepWorkHours", "0"),
+        global_avg_deep_work=context.get("globalAvgDeepWork", "3.2"),
+        productive_hours=context.get("productiveHours", "0"),
+        wasted_hours=context.get("wastedHours", "0"),
+        compliance_score=context.get("complianceScore", 0),
+        streak=context.get("streak", 0),
+        user_type=context.get("userType", "Unknown"),
+        level=context.get("level", 1),
+        level_name=context.get("levelName", "Novice"),
+        sdg_score=context.get("sdgScore", 0),
+        sdg_level=context.get("sdgLevel", "Starting"),
+        balance_score=context.get("balanceScore", 50),
+        percentile_rank=100 - context.get("percentile", 50),
+        message=message,
+    )
+
+    result = _call_gemini(prompt)
+    if result:
+        result["_source"] = "ai"
+        _set_cache(cache_key, result, 300)  # 5 minute cache
+    return result
+

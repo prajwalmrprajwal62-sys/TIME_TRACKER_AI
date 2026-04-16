@@ -8,6 +8,7 @@ import { events, EVENTS } from './core/events.js';
 import { api } from './core/api.js';
 import { renderNavbar, renderMobileNav, updateNavActive, injectNavbarStyles } from './components/navbar.js';
 import { toastManager } from './components/toast.js';
+import { sdgChatbot } from './components/sdg-chatbot.js';
 
 // Pages
 import { LoginPage } from './pages/login.js';
@@ -211,6 +212,7 @@ class App {
         <div id="app-content"></div>
       </main>
       ${renderMobileNav()}
+      ${sdgChatbot.render()}
     `;
 
     // Register routes
@@ -245,6 +247,9 @@ class App {
 
     // Mobile menu toggle
     this.setupMobileMenu();
+
+    // SDG Chatbot
+    sdgChatbot.mount();
   }
 
   refreshNavbar() {

@@ -9,6 +9,13 @@ import { analyzer } from '../agents/analyzer.js';
 import { enforcer } from '../agents/enforcer.js';
 import { DonutChart } from '../components/charts.js';
 import { CATEGORIES } from '../data/categories.js';
+import {
+  SDG_BENCHMARKS,
+  calculateSDGScore,
+  calculatePercentile,
+  getSDGLevel,
+  calculateWorkLifeBalance,
+} from '../data/sdg-benchmarks.js';
 
 export function DashboardPage() {
   let donutChart = null;
@@ -87,6 +94,9 @@ export function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <!-- SDG 8 Productivity Index -->
+        ${renderSDGIndex(summary, compliance, streak)}
 
         <!-- Main Grid -->
         <div class="dashboard-grid">
@@ -272,3 +282,103 @@ function getMoodEmoji(mood) {
 function getBadgeClass(category) {
   return 'badge-' + category.toLowerCase().replace(/\s+/g, '-');
 }
+
+function renderSDGIndex(summary, compliance, streak) {
+  const deepWorkHours = (summary.categories['Deep Work']?.minutes || 0) / 60;
+  const wastedHours = summary.wastedMinutes / 60;
+
+  const sdgScore = calculateSDGScore({
+    deepWorkHours,
+    compliancePercent: compliance.score,
+    streakDays: streak,
+    wastedHours,
+  });
+  const sdgLevel = getSDGLevel(sdgScore);
+  const deepWorkPercentile = calculatePercentile(deepWorkHours, 'deepWork');
+  const compliancePercentile = calculatePercentile(compliance.score, 'compliance');
+  const streakPercentile = calculatePercentile(streak, 'streak');
+  const balanceScore = calculateWorkLifeBalance(
+    summary.productiveMinutes,
+    summary.wastedMinutes,
+    summary.totalMinutes
+  );
+
+  // SVG gauge calculations
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (sdgScore / 100) * circumference;
+
+  const benchmarks = SDG_BENCHMARKS.students;
+
+  return `
+    <div class="sdg-index-section" id="sdg-index">
+      <div class="sdg-index-header">
+        <div class="sdg-index-title">
+          <div style="width:28px; height:28px; border-radius:6px; background:var(--sdg8-primary); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; color:white;">8</div>
+          <h3>SDG 8 Productivity Index</h3>
+        </div>
+        <div class="sdg-badge">
+          <span class="sdg-badge-icon">8</span>
+          <span>Target 8.5</span>
+        </div>
+      </div>
+
+      <div class="sdg-gauge-container">
+        <!-- Circular Gauge -->
+        <div class="sdg-gauge">
+          <svg viewBox="0 0 140 140">
+            <circle class="gauge-bg" cx="70" cy="70" r="${radius}" />
+            <circle class="gauge-fill" cx="70" cy="70" r="${radius}"
+              stroke="${sdgLevel.color}"
+              stroke-dasharray="${circumference}"
+              stroke-dashoffset="${offset}" />
+          </svg>
+          <div class="sdg-gauge-text">
+            <span class="sdg-gauge-score" style="color: ${sdgLevel.color}">${sdgScore}</span>
+            <span class="sdg-gauge-label">${sdgLevel.emoji} ${sdgLevel.label}</span>
+          </div>
+        </div>
+
+        <!-- Comparison Cards -->
+        <div class="sdg-comparison-grid">
+          <div class="sdg-comparison-card">
+            <div class="sdg-comparison-label">🎯 Deep Work</div>
+            <div class="sdg-comparison-value" style="color: ${deepWorkHours >= benchmarks.deepWorkHoursDaily ? 'var(--color-success)' : 'var(--color-warning)'}">${deepWorkHours.toFixed(1)}h</div>
+            <div class="sdg-comparison-vs">Global avg: ${benchmarks.deepWorkHoursDaily}h/day</div>
+            <div class="sdg-comparison-rank ${deepWorkPercentile >= 50 ? 'above' : 'below'}">
+              ${deepWorkPercentile >= 50 ? `Top ${100 - deepWorkPercentile}%` : `${deepWorkPercentile}th percentile`}
+            </div>
+          </div>
+
+          <div class="sdg-comparison-card">
+            <div class="sdg-comparison-label">🛡️ Compliance</div>
+            <div class="sdg-comparison-value" style="color: ${compliance.score >= benchmarks.compliancePercent ? 'var(--color-success)' : 'var(--color-warning)'}">${compliance.score}%</div>
+            <div class="sdg-comparison-vs">Global avg: ${benchmarks.compliancePercent}%</div>
+            <div class="sdg-comparison-rank ${compliancePercentile >= 50 ? 'above' : 'below'}">
+              ${compliancePercentile >= 50 ? `Top ${100 - compliancePercentile}%` : `${compliancePercentile}th percentile`}
+            </div>
+          </div>
+
+          <div class="sdg-comparison-card">
+            <div class="sdg-comparison-label">🔥 Streak</div>
+            <div class="sdg-comparison-value" style="color: ${streak >= benchmarks.avgStreakDays ? 'var(--color-success)' : 'var(--color-warning)'}">${streak}d</div>
+            <div class="sdg-comparison-vs">Global avg: ${benchmarks.avgStreakDays}d</div>
+            <div class="sdg-comparison-rank ${streakPercentile >= 50 ? 'above' : 'below'}">
+              ${streakPercentile >= 50 ? `Top ${100 - streakPercentile}%` : `${streakPercentile}th percentile`}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SDG Banner -->
+      <div class="sdg-banner mt-4">
+        <span class="sdg-banner-icon">🏢</span>
+        <span><strong>Contributing to SDG 8.5</strong> — Your productive time of ${deepWorkHours.toFixed(1)}h/day ${deepWorkHours >= SDG_BENCHMARKS.sustainableTargets.minDeepWorkHours
+          ? 'meets sustainable productivity targets. Keep building!'
+          : `is ${(SDG_BENCHMARKS.sustainableTargets.minDeepWorkHours - deepWorkHours).toFixed(1)}h below the sustainable target of ${SDG_BENCHMARKS.sustainableTargets.minDeepWorkHours}h. Every hour counts.`
+        } Work-life balance: ${balanceScore}%</span>
+      </div>
+    </div>
+  `;
+}
+

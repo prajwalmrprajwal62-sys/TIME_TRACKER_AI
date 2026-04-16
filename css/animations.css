@@ -349,6 +349,83 @@
   to { stroke-dashoffset: 0; }
 }
 
+/* --- Chatbot Animations --- */
+@keyframes chatSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+}
+
+@keyframes typingDot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+@keyframes chatMessageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sdgPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(162, 25, 66, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(162, 25, 66, 0);
+  }
+}
+
+@keyframes sdgGlow {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(162, 25, 66, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(162, 25, 66, 0.6);
+  }
+}
+
+@keyframes gaugeRise {
+  from {
+    transform: rotate(-90deg);
+  }
+}
+
+.animate-sdg-pulse {
+  animation: sdgPulse 2s ease-in-out infinite;
+}
+
+.animate-sdg-glow {
+  animation: sdgGlow 2.5s ease-in-out infinite;
+}
+
 /* --- Reduced Motion --- */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -359,3 +436,4 @@
     transition-duration: 0.01ms !important;
   }
 }
+

@@ -70,6 +70,7 @@ from routes.plan_reward_routes import plan_router, reward_router
 from routes.ai_routes import router as ai_router
 from routes.review_routes import router as review_router
 from routes.alert_routes import router as alert_router
+from routes.chat_routes import router as chat_router
 
 app.include_router(auth_router)
 app.include_router(log_router)
@@ -79,6 +80,7 @@ app.include_router(reward_router)
 app.include_router(ai_router)
 app.include_router(review_router)
 app.include_router(alert_router)
+app.include_router(chat_router)
 
 
 @app.get("/api/health")

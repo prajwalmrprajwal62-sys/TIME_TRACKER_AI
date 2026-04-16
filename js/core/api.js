@@ -303,6 +303,12 @@ class ApiService {
     return this._post(`/alerts/${alertId}/acknowledge?action=${action}`, {});
   }
 
+  // === SDG Chat ===
+
+  async chatWithAdvisor(message, context = {}) {
+    return this._post('/chat', { message, context });
+  }
+
   // === Sync Queue Helpers ===
 
   /**
